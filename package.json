@@ -10,6 +10,9 @@
   "license": "ISC",
   "dependencies": {
     "connect-busboy": "0.0.2",
-    "express": "^4.17.1"
+    "express": "^4.17.1",
+    "install": "^0.1.8",
+    "npm": "^6.14.7",
+    "unzipper": "^0.10.11"
   }
 }

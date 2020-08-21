@@ -8,7 +8,13 @@ module.exports = function (app) {
         res.status(200);
     });
 
-    app.get('/*', function(req, res, next) {
-        console.debug(`Request route: ${decodeURIComponent(req.url)}`);
+    app.get('/favicon.ico', function(req, res, next) {
+        res.sendFile(path.join(__dirname + '/public/favicon.png'));
+        res.status(200);
+    });
+
+    app.get('/', function(req, res, next) {
+        res.sendFile(path.join(__dirname + '/index.html'));
+        res.status(200);
     });
 };

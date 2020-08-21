@@ -4,10 +4,16 @@ const app = express();
 
 app.use(busboy());
 
-// This handles:
-// * mimics being posted to our server
-// * gets / saves via the public app
-// * gets being mocked out
+app.get('/*', function(req, res, next) {
+    console.debug(`GET route: ${decodeURIComponent(req.url)}`);
+    next();
+});
+app.post('/*', function(req, res, next) {
+    console.debug(`POST route: ${decodeURIComponent(req.url)}`);
+    next();
+});
+
+// This handles api requests
 require('./api/api')(app);
 
 // This is what the user uses when navigating to the root in the browser
