@@ -4,9 +4,15 @@ const path = require('path');
 const baseDBPath = path.resolve(__dirname) + '/../dbs/';
 let remoteAddress;
 
+function getDB() {
+    return new sqlite3.Database(`${baseDBPath}${remoteAddress}.db`);
+}
+
 function getTotal(req, res, next) {
-    let db = new sqlite3.Database(`${baseDBPath}${remoteAddress}.db`);
-    let sql = `SELECT SUM(duration_ms) as total_time
+    let db = getDB();
+    let sql = `SELECT
+            duration_ms,
+            podcast_id
         FROM episodes
         WHERE playbackDate > 0;`;
 
@@ -14,15 +20,22 @@ function getTotal(req, res, next) {
         if (err) {
             throw err;
         }
+
         res.end(JSON.stringify({
-            total_time: rows[0].total_time
+            pa: {
+                total_time: 20000
+            },
+            db: {
+                total_time: 20000,
+                adjusted_time: 20000
+            }
         }));
     });
     db.close();
 }
 
 function getPodcastTotals(req, res, next) {
-    let db = new sqlite3.Database(`${baseDBPath}${remoteAddress}.db`);
+    let db = getDB();
     let sql = `SELECT
         podcasts.name,
         COUNT(podcast_id) as played_count,
@@ -51,11 +64,12 @@ function getTime(req, res, next) {
     };
 
     let interval = intervalMapper[req.query.interval] || intervalMapper.year;
-    let db = new sqlite3.Database(`${baseDBPath}${remoteAddress}.db`);
+    let db = getDB();
     let sql = `SELECT
         ${req.query.interval === 'week' ? 'ROUND(((JULIANDAY(\'now\') - JULIANDAY(DATETIME(ROUND(playbackDate / 1000), \'unixepoch\'))) / 7) - 0.5) as group_key,': ''}
         STRFTIME('${interval}', DATETIME(ROUND(playbackDate / 1000), 'unixepoch')) as ${req.query.interval === 'week' ? 'date_key' : 'group_key'},
-        SUM(duration_ms) as total_time
+        SUM(duration_ms) as total_time,
+        COUNT(duration_ms) as total_count
     FROM episodes
     WHERE playbackDate > 0
     GROUP BY group_key

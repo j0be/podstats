@@ -35,7 +35,10 @@ function getSummary() {
         url: '/api/stats/total',
         dataType: 'json',
         success: function(data) {
-            $('#summary').text(prettyDate(data.total_time));
+            $('#summary').append('<table>');
+            $('#summary table').append(`<tr><td>Podcast Addict Total Time:</td><td>${prettyDate(data.pa.total_time)}</td></tr>`);
+            $('#summary table').append(`<tr><td>Listened Episode Total Time:</td><td>${prettyDate(data.db.total_time)}</td></tr>`);
+            $('#summary table').append(`<tr><td>Listened Episode Speed Adjusted Total Time:</td><td>${prettyDate(data.db.adjusted_time)}</td></tr>`);
         }
     });
 }

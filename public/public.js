@@ -27,11 +27,11 @@ module.exports = function (app) {
     });
 
     app.get('/', function(req, res, next) {
-        if (fs.existsSync(`${baseDBPath}${remoteAddress}.db`)) {
-            res.sendFile(path.join(__dirname + '/stats.html'));
-        } else {
-            res.sendFile(path.join(__dirname + '/index.html'));
-        }
+        // if (fs.existsSync(`${baseDBPath}${remoteAddress}.db`)) {
+        //     res.sendFile(path.join(__dirname + '/stats.html'));
+        // } else {
+                res.sendFile(path.join(__dirname + '/index.html'));
+        // }
         res.status(200);
     });
 };
