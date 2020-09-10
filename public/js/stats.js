@@ -12,28 +12,62 @@ const minuteLength = 60 * 1000;
 const hourLength = 60 * minuteLength;
 const dayLength = 24 * hourLength;
 
+let interval_mapper = {
+    year: ['YYYY', 'YYYY'],
+    month: ['YYYY-MM', 'MMMM YYYY'],
+    week: ['YYYY-MM-DD', 'MMMM D, YYYY'],
+    day: ['YYYY-MM-DD', 'MMMM D, YYYY']
+};
+
 let format = {
     pluralize: function pluralize(number, string) {
         return `${number} ${string}${number - 1 ? 's' : ''}`;
     },
-    prettyDate: function prettyDate(milliseconds) {
-        if (!milliseconds || milliseconds < 0) {
+    range: function(start_date, end_date) {
+        let start_format = end_date.year() !== start_date.year() ?
+            'MMMM D, YYYY [-] ' :
+            'MMMM D [-] ';
+        let end_format = end_date.month() !== start_date.month() ?
+            'MMMM D, YYYY' :
+            'D, YYYY';
+        return start_date.format(start_format) +
+            end_date.format(end_format)
+    },
+    timeFormat: function(milliseconds, format) {
+        return moment.utc(moment().diff(moment().subtract(milliseconds, 'milliseconds'))).format(format);
+    },
+    prettyDate: function prettyDate(milliseconds, short) {
+        if (!milliseconds) {
             return '0';
+        } else if (milliseconds < 0) {
+            return '-' + format.prettyDate(milliseconds*-1, short);
         } else if (milliseconds >= dayLength) {
             let days = Math.floor(milliseconds / dayLength);
             let hours = Math.floor((milliseconds - (days * dayLength)) / hourLength);
-            return `${days && format.pluralize(days, 'day') || ''} ${hours && format.pluralize(hours, 'hour') || ''}`;
+            let minutes = Math.floor((milliseconds - (days * dayLength) - (hours * hourLength)) / minuteLength);
+
+            return short ?
+                `${days}d ${format.timeFormat(milliseconds - (days * dayLength), 'HH:mm:ss')}` :
+                `${format.pluralize(days, 'day') || ''} ${format.pluralize(hours, 'hour') || ''} ${minutes && format.pluralize(minutes, 'minute') || ''}`;
         } else if (milliseconds >= hourLength) {
             let hours = Math.floor(milliseconds / hourLength);
             let minutes = Math.floor((milliseconds - (hours * hourLength)) / minuteLength);
-            return `${hours && format.pluralize(hours, 'hour') || ''} ${minutes && format.pluralize(minutes, 'minute') || ''}`;
+            return short ?
+                format.timeFormat(milliseconds, 'H:mm:ss') :
+                `${format.pluralize(hours, 'hour') || ''} ${minutes && format.pluralize(minutes, 'minute') || ''}`;
         } else if (milliseconds >= minuteLength) {
             let minutes = Math.floor(milliseconds / minuteLength);
             let seconds = Math.floor((milliseconds - (minutes * minuteLength)) / 1000);
-            return `${minutes && format.pluralize(minutes, 'minute') || ''} ${seconds && format.pluralize(seconds, 'second') || ''}`;
+            return short ?
+                format.timeFormat(milliseconds, 'm:ss') :
+                `${format.pluralize(minutes, 'minute') || ''} ${seconds && format.pluralize(seconds, 'second') || ''}`;
         } else {
             let seconds = Math.floor(milliseconds / 1000);
-            return format.pluralize(seconds, 'second');
+            return short ?
+                format.timeFormat(milliseconds, 's') :
+                format.pluralize(seconds, 'second');
+
+            return ;
         }
     },
     percent: function percent(number) {
@@ -47,23 +81,23 @@ let format = {
     }
 };
 
-let interval_mapper = {
-    year: ['YYYY', 'YYYY'],
-    month: ['YYYY-MM', 'MMMM YYYY'],
-    week: ['YYYY-MM-DD', 'MMMM D, YYYY'],
-    day: ['YYYY-MM-DD', 'MMMM D, YYYY']
-};
-
 function getSummary() {
     $.ajax({
         type: "POST",
         url: '/api/stats/total',
         dataType: 'json',
         success: function(data) {
-            $('#summary').append('<table>');
-            $('#summary table').append(`<tr><td>Podcast Addict Total Time:</td><td>${format.prettyDate(data.pa.total_time)}</td></tr>`);
+            $('#summary').append('<div><h2>Summary</h2><table></div>');
+            $('#summary table').append(`<tr><th colspan="2">Podcast Addict</th></tr>`);
+            $('#summary table').append(`<tr><td>Total Time:</td><td>${format.prettyDate(data.pa.total_time)}</td></tr>`);
+            $('#summary table').append(`<tr><td>Radio Time:</td><td>${format.prettyDate(data.pa.radio_time)}</td></tr>`);
+            $('#summary table').append(`<tr><td>Episode Count:</td><td>${format.comma(format.round(data.pa.read_episodes))}</td></tr>`);
+
+            $('#summary table').append(`<tr><th colspan="2">Podstats</th></tr>`);
             $('#summary table').append(`<tr><td>Listened Episode Total Time:</td><td>${format.prettyDate(data.db.total_time)}</td></tr>`);
-            $('#summary table').append(`<tr><td>Listened Episode Speed Adjusted Total Time:</td><td>${format.prettyDate(data.db.adjusted_time)}</td></tr>`);
+            $('#summary table').append(`<tr><td>Speed Adjusted Total Time:</td><td>${format.prettyDate(data.db.adjusted_time)}</td></tr>`);
+            $('#summary table').append(`<tr><td>Episode Count:</td><td>${format.comma(format.round(data.db.total_count))}</td></tr>`);
+
         }
     });
 }
@@ -80,7 +114,6 @@ function getChart() {
         }
     });
 }
-
 function getIntervalData(serverData, interval_key) {
     let threshold_low = moment($('#start_date').val(), 'YYYY-MM-DD');
     let threshold_high = moment($('#end_date').val(), 'YYYY-MM-DD');
@@ -95,10 +128,21 @@ function getIntervalData(serverData, interval_key) {
     let first_playback_date = moment(String(first_played_label.split('-').slice(0,3)), interval_mapper[interval_key][0]);
     let last_date = moment(String(last_label.split('-').slice(0,3)), interval_mapper[interval_key][0]);
 
-    if (interval_key === 'week') {
-        first_total_date.subtract(first_total_label.split('-').pop(), 'weeks');
-        first_playback_date.subtract(first_played_label.split('-').pop(), 'weeks');
-        last_date.subtract(last_label.split('-').pop(), 'weeks');
+    switch (interval_key) {
+        case 'week':
+            first_total_date.subtract(parseInt(first_total_label.split('-').pop()), 'weeks');
+            first_playback_date.subtract(parseInt(first_played_label.split('-').pop()), 'weeks');
+            last_date.subtract(parseInt(last_label.split('-').pop()), 'weeks');
+            break;
+
+        case 'month':
+            threshold_high = threshold_high.endOf('month');
+            last_date = last_date.endOf('month');
+            break;
+        case 'year':
+            threshold_high = threshold_high.endOf('year');
+            last_date = last_date.endOf('year');
+            break;
     }
 
     threshold_low_total = threshold_low._isValid ? threshold_low : first_total_date;
@@ -120,14 +164,38 @@ function getIntervalData(serverData, interval_key) {
 }
 
 function drawChart(serverData) {
+    let interval_key = $('#interval').val();
+    let intervalData = getIntervalData(serverData, interval_key);
+
+    let cumulativeTotals = {
+        total_time_adjusted: 0,
+        total_time: 0,
+        total_count: 0,
+        playback_time_adjusted: 0,
+        playback_time: 0,
+        playback_count: 0,
+        read_time_adjusted: 0,
+        read_time: 0,
+        read_count: 0
+    };
+
+    handleChartData(serverData, cumulativeTotals, intervalData);
+    handleChartSummary(cumulativeTotals, intervalData);
+}
+
+function handleChartData(serverData, cumulativeTotals, intervalData) {
+    let interval_key = $('#interval').val();
     let showPublished = $('#published').is(':checked');
     let useAdjusted = $('#useAdjusted').is(':checked');
     let incrementType = $('.incrementType:checked').val();
     let isCumulative = incrementType === 'cumulative' || incrementType === 'remaining';
     let isRemaining = incrementType === 'remaining';
 
-    let interval_key = $('#interval').val();
-    let intervalData = getIntervalData(serverData, interval_key);
+    let total_milliseconds,
+        total_count,
+        playback_milliseconds,
+        playback_count;
+
     var dataTable = new google.visualization.DataTable();
 
     dataTable.addColumn({type: 'date', label: 'Year'});
@@ -137,6 +205,8 @@ function drawChart(serverData) {
     } else {
         dataTable.addColumn({type: 'number', format: 'decimal', label: 'Playback Time'});
         dataTable.addColumn({type: 'string', role: 'tooltip', p: { html: true }});
+        dataTable.addColumn({type: 'number', format: 'decimal', label: 'Read Time'});
+        dataTable.addColumn({type: 'string', role: 'tooltip', p: { html: true }});
 
         if (showPublished) {
             dataTable.addColumn({type: 'number', format: 'decimal', label: 'Published Time'});
@@ -144,19 +214,9 @@ function drawChart(serverData) {
         }
     }
 
-    let total_milliseconds,
-        total_count,
-        playback_milliseconds,
-        playback_count;
+    // for (let i = 0; i < intervalData.total_intervals; i ++) {
 
-    let cumlativeTotals = {
-        total_time_adjusted: 0,
-        total_time: 0,
-        total_count: 0,
-        playback_time_adjusted: 0,
-        playback_time: 0,
-        playback_count: 0
-    };
+    // }
 
     serverData.forEach(function(interval) {
         let labelKey = interval.group_key.split('-').slice(0,3);
@@ -165,19 +225,9 @@ function drawChart(serverData) {
 
         if (interval_key === 'week') {
             date.subtract(interval.group_key.split('-').pop(), 'weeks');
-            let end_date = moment(date).add('6', 'days');
-
-            let date_format = date.year() !== end_date.year() ?
-                'MMMM D, YYYY [-] ' :
-                'MMMM D [-] ';
-            let end_format = date.month() !== end_date.month() ?
-                'MMMM D, YYYY' :
-                'D, YYYY';
-
-            label = date.format(date_format) +
-                end_date.format(end_format);
+            let start_date = moment(date).subtract('6', 'days');
+            label = format.range(start_date, date);
         }
-
 
         let isBefore = date.isBefore(intervalData.threshold_low);
         let isAfter = date.isAfter(intervalData.threshold_high);
@@ -187,25 +237,29 @@ function drawChart(serverData) {
                 date._d
             ];
 
-            Object.keys(cumlativeTotals).forEach(function(key) {
-                cumlativeTotals[key] += Math.max(interval[key] || 0, 0) ;
+            Object.keys(cumulativeTotals).forEach(function(key) {
+                cumulativeTotals[key] += Math.max(interval[key] || 0, 0) ;
             });
 
             if (isCumulative) {
-                total_milliseconds = useAdjusted ? cumlativeTotals.total_time_adjusted : cumlativeTotals.total_time;
-                total_count = cumlativeTotals.total_count;
-                playback_milliseconds = useAdjusted ? cumlativeTotals.playback_time_adjusted : cumlativeTotals.playback_time;
-                playback_count = cumlativeTotals.playback_count;
+                total_milliseconds = useAdjusted ? cumulativeTotals.total_time_adjusted : cumulativeTotals.total_time;
+                total_count = cumulativeTotals.total_count;
+                read_milliseconds = useAdjusted ? cumulativeTotals.read_time_adjusted : cumulativeTotals.read_time;
+                read_count = cumulativeTotals.read_count;
+                playback_milliseconds = useAdjusted ? cumulativeTotals.playback_time_adjusted : cumulativeTotals.playback_time;
+                playback_count = cumulativeTotals.playback_count;
             } else {
                 total_milliseconds = Math.max((useAdjusted ? interval.total_time_adjusted : interval.total_time) || 0, 0);
                 total_count = interval.total_count || 0;
+                read_milliseconds = Math.max((useAdjusted ? interval.read_time_adjusted : interval.read_time) || 0, 0);
+                read_count = interval.read_count || 0;
                 playback_milliseconds = Math.max((useAdjusted ? interval.playback_time_adjusted : interval.playback_time) || 0, 0);
                 playback_count = interval.playback_count || 0;
             }
 
             if (isRemaining) {
-                let remaining_milliseconds = total_milliseconds - playback_milliseconds;
-                let remaining_count = total_count - playback_count;
+                let remaining_milliseconds = total_milliseconds - playback_milliseconds - read_milliseconds;
+                let remaining_count = total_count - playback_count - read_count;
                 rowData = rowData.concat([
                     remaining_milliseconds / hourLength,
                     `<div style="padding: 1em; font-family: Arial; font-size: 14px;">
@@ -215,16 +269,20 @@ function drawChart(serverData) {
                     </div>`
                 ]);
             } else {
-                if (showPublished || interval.playback_time > 0 || interval.playback_count > 0) {
-                    rowData = rowData.concat([
-                        (playback_milliseconds + 1) / hourLength,
-                        `<div style="padding: 1em; font-family: Arial; font-size: 14px;">
-                            <h3 style="margin-top: 0">${label}</h3>
-                            Played Episodes: ${playback_count} (${format.percent(playback_count / (total_count || 1))})<br/>
-                            Playback Time: ${format.prettyDate(playback_milliseconds)} (${format.percent(playback_milliseconds / (total_milliseconds || 1))})
-                        </div>`
-                    ]);
-                }
+                rowData = rowData.concat([
+                    (playback_milliseconds + 1) / hourLength,
+                    `<div style="padding: 1em; font-family: Arial; font-size: 14px;">
+                        <h3 style="margin-top: 0">${label}</h3>
+                        Played Episodes: ${playback_count} (${format.percent(playback_count / (total_count || 1))})<br/>
+                        Playback Time: ${format.prettyDate(playback_milliseconds)} (${format.percent(playback_milliseconds / (total_milliseconds || 1))})
+                    </div>`,
+                    (read_milliseconds + 1) / hourLength,
+                    `<div style="padding: 1em; font-family: Arial; font-size: 14px;">
+                        <h3 style="margin-top: 0">${label}</h3>
+                        Read Episodes: ${read_count} (${format.percent(read_count / (total_count || 1))})<br/>
+                        Read Time: ${format.prettyDate(read_milliseconds)} (${format.percent(read_milliseconds / (total_milliseconds || 1))})
+                    </div>`
+                ]);
 
                 if (showPublished) {
                     rowData = rowData.concat([
@@ -246,8 +304,9 @@ function drawChart(serverData) {
 
     var options = {
         series: {
-            0: { color: '#480' },
-            1: { color: '#09f' },
+            0: { color: '#6432f9' },
+            1: { color: '#80ea33' },
+            2: { color: '#b7bac8' },
         },
         tooltip: {
             isHtml: true
@@ -260,20 +319,52 @@ function drawChart(serverData) {
     var chart = new google.visualization.AreaChart(document.getElementById('chart_div'));
     chart.draw(dataTable, options);
 
-    //
-    $('#compare').html('<table></table>');
-    $('#compare table').append(`<tr><td>Total published time:</td><td>${format.prettyDate(cumlativeTotals.total_time)}</td></tr>`);
-    $('#compare table').append(`<tr><td>Total published episodes:</td><td>${format.comma(format.round(cumlativeTotals.total_count))}</td></tr>`);
-    $('#compare table').append(`<tr><td>Total playback time:</td><td>${format.prettyDate(cumlativeTotals.playback_time)}</td></tr>`);
-    $('#compare table').append(`<tr><td>Total played episodes:</td><td>${format.comma(format.round(cumlativeTotals.playback_count))}</td></tr>`);
-    $('#compare table').append(`<tr><td>Avg published time:</td><td>${format.prettyDate(cumlativeTotals.total_time / intervalData.total_intervals)}</td></tr>`);
-    $('#compare table').append(`<tr><td>Avg published episodes:</td><td>${format.comma(format.round(cumlativeTotals.total_count / intervalData.total_intervals))}</td></tr>`);
-    $('#compare table').append(`<tr><td>Avg playback time:</td><td>${format.prettyDate(cumlativeTotals.playback_time / intervalData.playback_intervals)}</td></tr>`);
-    $('#compare table').append(`<tr><td>Avg played episodes:</td><td>${format.comma(format.round(cumlativeTotals.playback_count / intervalData.playback_intervals))}</td></tr>`);
-
-    //
+    // Add data for autofill
     $('#start_date').attr('data-autodate', intervalData.first_playback_date.format('YYYY-MM-DD'));
     $('#end_date').attr('data-autodate', intervalData.last_date.format('YYYY-MM-DD'));
+}
+
+function handleChartSummary(cumulativeTotals, intervalData) {
+    let interval_key = $('#interval').val();
+
+    let from_label = format.range(intervalData.threshold_low, intervalData.threshold_high);
+
+    $('#chart_summary').html('');
+    $('#chart_summary').append(`<div><div><h2>Total times</h2><div class="desc">from ${from_label}</div><table class="ttime"></table></div></div>`);
+    $('#chart_summary table.ttime').append('<tr><th></th><th>Adjusted by speed</th><th>1.0x speed</th></tr>');
+
+    $('#chart_summary table.ttime').append(`<tr>
+        <td>Published time:</td>
+        <td>${format.prettyDate(cumulativeTotals.total_time_adjusted, true)}</td>
+        <td>${format.prettyDate(cumulativeTotals.total_time, true)}</td>
+    </tr>`);
+    $('#chart_summary table.ttime').append(`<tr>
+        <td>Playback time:</td>
+        <td>${format.prettyDate(cumulativeTotals.playback_time_adjusted, true)}</td>
+        <td>${format.prettyDate(cumulativeTotals.playback_time, true)}</td>
+    </tr>`);
+    $('#chart_summary table.ttime').append(`<tr>
+        <td>Read time:</td>
+        <td>${format.prettyDate(cumulativeTotals.read_time_adjusted, true)}</td>
+        <td>${format.prettyDate(cumulativeTotals.read_time, true)}</td>
+    </tr>`);
+    $('#chart_summary table.ttime').append(`<tr>
+        <td>Remaining time:</td>
+        <td>${format.prettyDate(cumulativeTotals.total_time_adjusted - cumulativeTotals.playback_time_adjusted - cumulativeTotals.read_time_adjusted, true)}</td>
+        <td>${format.prettyDate(cumulativeTotals.total_time - cumulativeTotals.playback_time - cumulativeTotals.read_time, true)}</td>
+    </tr>`);
+
+    $('#chart_summary').append(`<div><div><h2>Total counts</h2><div class="desc">from ${from_label}</div><table class="tcount"></table></div></div>`);
+    $('#chart_summary table.tcount').append(`<tr><td>Published episodes:</td><td>${format.comma(format.round(cumulativeTotals.total_count))}</td></tr>`);
+    $('#chart_summary table.tcount').append(`<tr><td>Played episodes:</td><td>${format.comma(format.round(cumulativeTotals.playback_count))}</td></tr>`);
+    $('#chart_summary table.tcount').append(`<tr><td>Read episodes:</td><td>${format.comma(format.round(cumulativeTotals.read_count))}</td></tr>`);
+    $('#chart_summary table.tcount').append(`<tr><td>Remaining episodes:</td><td>${format.comma(format.round(cumulativeTotals.total_count - cumulativeTotals.playback_count - cumulativeTotals.read_count))}</td></tr>`);
+
+    $('#chart_summary').append(`<div><div><h2>Averages</h2><div class="desc">per ${interval_key} from ${from_label}</div><table class="avg"></table></div></div>`);
+    $('#chart_summary table.avg').append(`<tr><td>Avg published time:</td><td>${format.prettyDate(cumulativeTotals.total_time / intervalData.total_intervals)}</td></tr>`);
+    $('#chart_summary table.avg').append(`<tr><td>Avg playback time:</td><td>${format.prettyDate(cumulativeTotals.playback_time / intervalData.total_intervals)}</td></tr>`);
+    $('#chart_summary table.avg').append(`<tr><td>Avg published episodes:</td><td>${format.comma(format.round(cumulativeTotals.total_count / intervalData.total_intervals).toFixed(1))}</td></tr>`);
+    $('#chart_summary table.avg').append(`<tr><td>Avg played episodes:</td><td>${format.comma(format.round(cumulativeTotals.playback_count / intervalData.total_intervals).toFixed(1))}</td></tr>`);
 }
 
 function autofillDate() {

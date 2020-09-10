@@ -8,38 +8,97 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.27.0/moment.min.js" crossorigin="anonymous"></script>
     <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
     <script src="/public/js/stats.js"></script>
+    <style>
+        #summary>div {
+            text-align: center;
+        }
+        #summary table {
+            margin: 0 auto;
+        }
+
+        table {
+            text-align: right;
+        }
+
+        table td:first-child {
+            color: #888;
+            font-size: .8em;
+        }
+
+        table td + td {
+            padding-left: 1em;
+        }
+
+        .desc {
+            color: #888;
+        }
+
+        .flex {
+            display: flex;
+        }
+
+        .flex > * {
+            flex-basis: 100%;
+        }
+
+        #chart_summary>div {
+            text-align: center;
+        }
+
+        #chart_summary>div>div {
+            display: inline-block;
+            text-align: left;
+        }
+
+        #chart_summary h2 {
+            margin-bottom: 0;
+        }
+
+        #chart_summary h2 + .desc {
+            margin-bottom: 1em;
+        }
+    </style>
 </head>
 
 <body style="font-family: Arial; font-size: 18px;">
 
-    <div id="summary"></div>
-    <div id="compare"></div>
-
-    <select id="interval" name="interval">
-        <option value="year">Year</option>
-        <option value="month" selected>Month</option>
-        <option value="week">Week</option>
-        <option value="day">Day</option>
-    </select>
-
-    <p>
-        <label><input id="useAdjusted" type="checkbox" checked /> Adjust time with playback speed?</label>
-    </p>
-    <p>
-        <label><input id="published" type="checkbox" checked /> Show published time?</label>
-    </p>
-    <p>
-        <label><input class="incrementType" type="radio" name="incrementType" value="interval" checked /> Interval</label><br/>
-        <label><input class="incrementType" type="radio" name="incrementType" value="cumulative" /> Cumulative</label><br/>
-        <label><input class="incrementType" type="radio" name="incrementType" value="remaining" /> Remaining</label>
-    </p>
-    <p>
-        <label><input type="date" id="start_date" /></label> <a href="javascript:void(0)">Autofill first playback date</a><br/>
-        <label><input type="date" id="end_date" /></label> <a href="javascript:void(0)">Autofill last playback date</a>
-    </p>
+    <div class="flex">
+        <div id="summary"></div>
+        <div>
+            <div>
+                <h2>Filters</h2>
+                <div class="flex">
+                    <div>
+                        <select id="interval" name="interval">
+                            <option value="year">Year</option>
+                            <option value="month" selected>Month</option>
+                            <option value="week">Week</option>
+                            <option value="day">Day</option>
+                        </select><br/>
+                        <label><input type="date" id="start_date" /></label> <a href="javascript:void(0)">Autofill first playback date</a><br/>
+                        <label><input type="date" id="end_date" /></label> <a href="javascript:void(0)">Autofill last playback date</a>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <h2>Chart Options</h2>
+                <div class="flex">
+                    <div>
+                        <label><input id="useAdjusted" type="checkbox" checked /> Adjust chart with playback speed?</label><br/>
+                        <label><input id="published" type="checkbox" checked /> Show published time?</label><br/>
+                        <label><input class="incrementType" type="radio" name="incrementType" value="interval" checked /> Interval</label><br/>
+                        <label><input class="incrementType" type="radio" name="incrementType" value="cumulative" /> Cumulative</label><br/>
+                        <label><input class="incrementType" type="radio" name="incrementType" value="remaining" /> Remaining</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div id="chart_div" style="width: 100%; height: 1000px; max-height: 80vh;">
     </div>
+
+    <div id="chart_summary" class="flex"></div>
 </body>
 
 </html>
